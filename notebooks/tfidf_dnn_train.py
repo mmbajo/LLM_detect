@@ -21,6 +21,9 @@ from tqdm import tqdm
 
 import language_tool_python
 
+import optuna
+from optuna.trial import TrialState
+
 DATA_PATH = "/workspaces/LLM_detect/data/daigt-proper-train-dataset/train_v2_drcat_02.csv"
 OUT_DIR = Path("../_OUTPUT/exp_020_tfidf_dnn")
 OUT_DIR.mkdir(exist_ok=True, parents=True)
@@ -148,23 +151,94 @@ def get_model(vectorizer):
     )
     return model
 
-def train_models(X_train, y_train, X_val, y_val, vectorizer, fold):
-    model_path = OUT_DIR / f"model_{fold}.tf"
+def train_models(X_train, y_train, X_val, y_val, model, fold):
+    model_path = str(OUT_DIR / f"model_{fold}.tf")
     checkpoints = []
-    model = get_model(vectorizer)
+    # model = get_model(vectorizer)
     train_ds = make_dataset(X_train, y_train, 128, "train")
     valid_ds = make_dataset(X_val, y_val, 128, "valid")
     model.fit(
         train_ds, 
-        epochs=30, 
+        epochs=5, 
         validation_data=valid_ds,
         callbacks=[
             keras.callbacks.ReduceLROnPlateau(patience=5, min_delta=1e-4, min_lr=1e-6),
             keras.callbacks.ModelCheckpoint(model_path, monitor="val_auc", mode="max", save_best_only=True)
-        ]
+        ],
+        verbose=True
     )
     checkpoints.append(evaluate_model(model, X_val, y_val))
     return checkpoints
+
+def hyperparam_optimizer():
+    train = get_train_data()
+    vectorizer = get_vectorizers(train)
+    kfold = StratifiedKFold(5, shuffle=True, random_state=42)
+    
+    def get_model(vectorizer, param_dict):
+        inputs = keras.Input(shape=(), dtype=tf.string)
+        x = vectorizer(inputs)
+        x = layers.Dense(param_dict["FIRST_LAYER"], activation="swish")(x)
+        x = layers.Dropout(param_dict["DROP_OUT_1"])(x)
+        x = layers.Dense(param_dict["SECOND_LAYER"], activation="swish")(x)
+        x = layers.Dropout(param_dict["DROP_OUT_2"])(x)
+        output = layers.Dense(1)(x)
+        model = keras.Model(inputs, output, name="model")
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(param_dict["LR"]), 
+            loss=tf.keras.losses.BinaryCrossentropy(
+                from_logits=True,
+                label_smoothing=param_dict["LABEL_SMOOTHING"],
+            ), 
+            metrics=[
+                "accuracy", 
+                keras.metrics.AUC(name="auc")
+            ]
+        )
+        return model
+    
+    def do_train(param_dict):
+        models = []
+        for fold, (train_index, valid_index) in enumerate(kfold.split(train, train["label"])):
+            model = get_model(vectorizer, param_dict)
+            X_train = train.iloc[train_index]["text"]
+            y_train = train.iloc[train_index]["label"]
+            X_val = train.iloc[valid_index]["text"]
+            y_val = train.iloc[valid_index]["label"]
+            models += train_models(X_train, y_train, X_val, y_val, model, fold)
+            
+        result = np.mean([model["auc"] for model in models])
+        return result
+    
+    def objective_function(trial):
+        param_dict = {}
+        param_dict["LR"] = trial.suggest_float("LR", 1e-6, 0.01, log=True)
+        param_dict["DROP_OUT_1"] = trial.suggest_float("DROP_OUT_1", 0, 0.4)
+        param_dict["DROP_OUT_2"] = trial.suggest_float("DROP_OUT_2", 0, 0.4)
+        param_dict["FIRST_LAYER"] = trial.suggest_int("FIRST_LAYER", 16, 256)
+        param_dict["SECOND_LAYER"] = trial.suggest_int("SECOND_LAYER", 4, 16)
+        param_dict["LABEL_SMOOTHING"] = trial.suggest_float("LABEL_SMOOTHING", 0.05, 0.35)
+        return do_train(param_dict)
+    
+    sampler = optuna.samplers.TPESampler(seed=42)
+    study = optuna.create_study(direction="minimize", sampler=sampler)
+    study.optimize(objective_function, n_trials=1000)
+    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+    print("Study statistics: ")
+    print("  Number of finished trials: ", len(study.trials))
+    print("  Number of pruned trials: ", len(pruned_trials))
+    print("  Number of complete trials: ", len(complete_trials))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: ", trial.value)
+
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
+    return trial.params
 
 def main():
     train = get_train_data()
@@ -172,15 +246,20 @@ def main():
     kfold = StratifiedKFold(5, shuffle=True, random_state=42)
     models = []
     for fold, (train_index, valid_index) in enumerate(kfold.split(train, train["label"])):
+        model = get_model(vectorizer)
         X_train = train.iloc[train_index]["text"]
         y_train = train.iloc[train_index]["label"]
         X_val = train.iloc[valid_index]["text"]
         y_val = train.iloc[valid_index]["label"]
-        models += train_models(X_train, y_train, X_val, y_val, vectorizer, fold)
+        models += train_models(X_train, y_train, X_val, y_val, model, fold)
         
     result = np.mean([model["auc"] for model in models])
-    print(result)
+    return result
     
-
 if __name__ == "__main__":
-    main() 
+    import yaml
+    
+    best_params = hyperparam_optimizer()
+    with open(OUT_DIR / "best_params.yaml", "w") as f:
+        yaml.dump(best_params, f, default_flow_style=False)
+    # main() 
