@@ -1,0 +1,43 @@
+{
+	"name": "llm",
+	// Sets the run context to one level up instead of the .devcontainer folder.
+	"context": "..",
+	// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
+	"dockerFile": "../Dockerfile",
+	//"image": "nvcr.io/nvidia/pytorch:22.03-py3",
+	// Set *default* container specific settings.json values on container create.
+	"settings": {},
+	// Add the IDs of extensions you want installed when the container is created.
+	"extensions": [
+		"ms-python.python",
+		"ms-python.vscode-pylance",
+		"mhutchie.git-graph",
+		"GitHub.vscode-pull-request-github",
+		"eamodio.gitlens",
+		"mechatroner.rainbow-csv",
+		"bungcip.better-toml",
+		"shd101wyy.markdown-preview-enhanced",
+		"yzhang.markdown-all-in-one",
+		"njpwerner.autodocstring",
+		"albert.TabOut"
+	],
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+	// Uncomment when using a ptrace-based debugger like C++, Go, and Rust
+	"runArgs": [
+		"--privileged",
+		"--gpus",
+		"all",
+		"--name",
+		"llm",
+		"--shm-size",
+		"8G",
+		"--dns",
+		"8.8.8.8"
+	],
+	"mounts": [
+		//"source=/raid/TY,target=/workspaces/PRJ_TY/data,type=bind",
+		"source=/home/mbajo/.ssh,target=/home/duser/.ssh,ro=true,type=bind"
+	]
+	//"remoteUser": "duser"
+}
