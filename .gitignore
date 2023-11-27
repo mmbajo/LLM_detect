@@ -1,7 +1,7 @@
 data/*
 _OUTPUT/*
 *.csv
-*.txt
+notebooks/*.txt
 *.pkl
 
 notebooks/wandb/*
