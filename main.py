@@ -13,7 +13,7 @@ import unicodedata
 
 import language_tool_python
 
-TOOL = language_tool_python.LanguageTool('en-US')
+TOOL = language_tool_python.LanguageToolPublicAPI('en-US')
 MODEL_PATH = Path("./models")
 @st.cache_resource
 def init_model():
