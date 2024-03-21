@@ -8,7 +8,6 @@ import tensorflow as tf
 from tensorflow.keras.layers import TextVectorization
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.models import load_model
 import re
 import unicodedata
 
@@ -33,9 +32,11 @@ def init_model():
         
     models = []
     for fold in range(5):
-        model = keras.layers.TFSMLayer(
+        model = keras.models.load_model(
             MODEL_PATH / f"model_{fold}.tf", 
-            call_endpoint='serving_default'
+            custom_objects={
+                "fbeta": fbeta
+            }
         )
         models.append(model)
         
@@ -75,8 +76,7 @@ def infer(text):
     
     def inference(model, X_val):
         if "keras" in str(type(model)):
-            y_pred = model(X_val).reshape(-1)
-            print(y_pred.shape)
+            y_pred = model.predict(X_val, verbose=2).reshape(-1)
         else:
             y_pred = model.predict_proba(X_val)[:, 1].reshape(-1)
         return y_pred
