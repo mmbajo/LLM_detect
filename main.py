@@ -34,7 +34,8 @@ def init_model():
     models = []
     for fold in range(5):
         model = keras.layers.TFSMLayer(
-            MODEL_PATH / f"model_{fold}.tf"
+            MODEL_PATH / f"model_{fold}.tf", 
+            call_endpoint='serving_default'
         )
         models.append(model)
         
