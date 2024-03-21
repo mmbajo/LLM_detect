@@ -33,7 +33,7 @@ def init_model():
         
     models = []
     for fold in range(5):
-        model = load_model(
+        model = keras.layers.TFSMLayer(
             MODEL_PATH / f"model_{fold}.tf"
         )
         models.append(model)
@@ -74,7 +74,8 @@ def infer(text):
     
     def inference(model, X_val):
         if "keras" in str(type(model)):
-            y_pred = model.predict(X_val, verbose=2).reshape(-1)
+            y_pred = model(X_val).reshape(-1)
+            print(y_pred.shape)
         else:
             y_pred = model.predict_proba(X_val)[:, 1].reshape(-1)
         return y_pred
