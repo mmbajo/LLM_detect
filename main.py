@@ -32,11 +32,9 @@ def init_model():
         
     models = []
     for fold in range(5):
-        model = keras.models.load_model(
+        model = keras.layers.TFSMLayer(
             MODEL_PATH / f"model_{fold}.tf", 
-            custom_objects={
-                "fbeta": fbeta
-            }
+            call_endpoint='serving_default'
         )
         models.append(model)
         
