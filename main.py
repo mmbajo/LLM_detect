@@ -8,6 +8,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import TextVectorization
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.models import load_model
 import re
 import unicodedata
 
@@ -32,9 +33,8 @@ def init_model():
         
     models = []
     for fold in range(5):
-        model = keras.layers.TFSMLayer(
-            MODEL_PATH / f"model_{fold}.tf", 
-            call_endpoint='serving_default'
+        model = load_model(
+            MODEL_PATH / f"model_{fold}.tf"
         )
         models.append(model)
         
